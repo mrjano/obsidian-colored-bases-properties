@@ -78,3 +78,7 @@ If you find this plugin useful, consider:
 ## API Documentation
 
 For Obsidian plugin development, see the [official API documentation](https://github.com/obsidianmd/obsidian-api).
+
+## Release history
+- 0.1.0 : first version published on Github
+- 0.1.1 : correction brought to manifest.json to satisfy community plugin requirements
