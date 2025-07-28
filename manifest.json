@@ -1,11 +1,11 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
-	"version": "1.0.0",
+	"id": "colored-property-lists",
+	"name": "Colored Property Lists",
+	"version": "0.1.0",
 	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"description": "Obsidian plugin to color property lists in Bases.",
+	"author": "Rafaël Jafferal",
+	"authorUrl": "https://github.com/rafjaf/obsidian-colored-property-lists",
+	"fundingUrl": "",
 	"isDesktopOnly": false
 }
