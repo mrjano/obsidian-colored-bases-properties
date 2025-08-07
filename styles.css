@@ -1,8 +1,23 @@
 /*
-
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
-
-If your plugin does not need CSS, delete this file.
-
+Colored Bases Properties Plugin Styles
+Base styles for property list values and formula properties
 */
+
+/* Base styles for property list values */
+.multi-select-pill[data-sanitized-content] {
+	transition: background-color 0.2s ease;
+	color: white !important;
+}
+
+/* Base styles for formula properties - styled as pills */
+div.bases-td[data-property^="formula"] > div.bases-rendered-value[data-sanitized-content] {
+	transition: background-color 0.2s ease;
+	color: white !important;
+	border-radius: var(--pill-radius);
+	box-sizing: border-box;
+	width: auto !important;
+	max-width: none !important;
+	white-space: nowrap !important;
+	align-items: center;
+	height: 1.3em;
+}

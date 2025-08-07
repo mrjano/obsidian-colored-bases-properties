@@ -1,35 +1,26 @@
 import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
-import { ColoredPropertyListsPluginSettings, DEFAULT_SETTINGS, ColoredPropertyListsSettingTab } from './settings';
+import { ColoredBasesPropertiesPluginSettings, DEFAULT_SETTINGS, ColoredBasesPropertiesSettingTab } from './settings';
 
-const BASE_PILL_STYLES = `
-				/* Base styles for property list values */
-				.multi-select-pill[data-sanitized-content] {
-					transition: background-color 0.2s ease;
-					color: white !important;
-				}
-			`;
-
-export default class ColoredPropertyListsPlugin extends Plugin {
-	settings: ColoredPropertyListsPluginSettings;
-	private debounceTimer: number | null = null;
+export default class ColoredBasesPropertiesPlugin extends Plugin {
+	settings: ColoredBasesPropertiesPluginSettings;
+	private scrollTimer: number | null = null;
 	private currentBasesView: any = null;
 	private scrollEventRef: (() => void) | null = null;
 	private contentElement: HTMLElement | null = null;
-	private addedStyleRules: Set<string> = new Set();
 	private mutationObserver: MutationObserver | null = null;
 
 	async onload() {
 		await this.loadSettings();
 
 		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new ColoredPropertyListsSettingTab(this.app, this));
+		this.addSettingTab(new ColoredBasesPropertiesSettingTab(this.app, this));
 
 		// Create style element for the plugin
 		this.createStyleElement();
 		
 		// Add existing color rules to style element
 		Object.entries(this.settings.pillColors).forEach(([originalText, color]) => {
-			if (color) { // Only add if color is set
+			if (color && (this.settings.pillEnabled[originalText] !== false)) { // Only add if color is set and enabled
 				const sanitized = originalText.replace(/\s+/g, '').replace(/[^\w\u00C0-\u017F-]/g, '');
 				this.addColorRule(sanitized, color);
 			}
@@ -64,7 +55,7 @@ export default class ColoredPropertyListsPlugin extends Plugin {
 				this.currentBasesView = view;
 				// Add a small delay to ensure DOM is fully rendered
 				setTimeout(() => {
-					this.processListProperties();
+					this.processProperties();
 				}, 100);
 				this.setupViewportListener();
 			} else {
@@ -77,14 +68,14 @@ export default class ColoredPropertyListsPlugin extends Plugin {
 
 	createStyleElement() {
 		// Check if style element already exists
-		const existingStyle = document.getElementById('colored-property-lists-style');
+		const existingStyle = document.getElementById('colored-bases-properties-style');
 		if (!existingStyle) {
 			const styleEl = document.createElement('style');
-			styleEl.id = 'colored-property-lists-style';
+			styleEl.id = 'colored-bases-properties-style';
 			styleEl.type = 'text/css';
 			
-			// Add base CSS rules for colored property lists
-			styleEl.textContent = BASE_PILL_STYLES;
+			// Base styles are now in styles.css, this element only handles dynamic color rules
+			styleEl.textContent = '';
 			
 			document.head.appendChild(styleEl);
 		}
@@ -110,47 +101,56 @@ export default class ColoredPropertyListsPlugin extends Plugin {
 	}
 
 	addColorRule(sanitizedContent: string, color: string) {
-		const styleEl = document.getElementById('colored-property-lists-style');
-		if (styleEl) {
-			// Check if we've already added this rule
-			if (this.addedStyleRules.has(sanitizedContent)) {
-				// If rule exists, update it by removing and re-adding
-				this.removeColorRule(sanitizedContent);
-			}
-			
-			// Add the new color rule for both Bases view and file properties
-			const newRule = `
-				.multi-select-pill[data-sanitized-content="${sanitizedContent}"] {
-					background-color: ${color} !important;
-				}`;
-			
-			styleEl.textContent += newRule;
-			this.addedStyleRules.add(sanitizedContent);
+		const styleEl = document.getElementById('colored-bases-properties-style') as HTMLStyleElement;
+		if (!styleEl) return;
+
+		// Find the original text from sanitized content to check if enabled
+		const originalText = Object.keys(this.settings.pillColors).find(key => {
+			const sanitized = key.replace(/\s+/g, '').replace(/[^\w\u00C0-\u017F-]/g, '');
+			return sanitized === sanitizedContent;
+		});
+		
+		// Skip if this property is disabled
+		if (originalText && this.settings.pillEnabled[originalText] === false) {
+			return;
+		}
+
+		// Remove existing rule for this content if it exists
+		const existingRuleIndex = Array.from(styleEl.sheet?.cssRules || []).findIndex(rule => 
+			rule.cssText.includes(`data-sanitized-content="${sanitizedContent}"`));
+		
+		if (existingRuleIndex !== -1) {
+			styleEl.sheet?.deleteRule(existingRuleIndex);
+		}
+
+		// Add new rules
+		if (this.settings.colorListProperties) {
+			styleEl.sheet?.insertRule(
+				`.multi-select-pill[data-sanitized-content="${sanitizedContent}"] { background-color: ${color} !important; }`
+			);
+		}
+		
+		if (this.settings.colorFormulaProperties) {
+			styleEl.sheet?.insertRule(
+				`div.bases-td[data-property^="formula"] > div.bases-rendered-value[data-sanitized-content="${sanitizedContent}"]:not(:has(img)):not(:has(svg)) { background-color: ${color} !important; }`
+			);
 		}
 	}
 
 	removeColorRule(sanitizedContent: string) {
-		const styleEl = document.getElementById('colored-property-lists-style');
-		if (styleEl && this.addedStyleRules.has(sanitizedContent)) {
-			// Rebuild the entire style content without this rule
-			let newContent = BASE_PILL_STYLES;
-			this.addedStyleRules.delete(sanitizedContent);
-			
-			// Re-add all other rules
-			Object.entries(this.settings.pillColors).forEach(([originalText, color]) => {
-				if (color) {
-					const sanitized = originalText.replace(/\s+/g, '').replace(/[^\w\u00C0-\u017F-]/g, '');
-					if (sanitized !== sanitizedContent) { // Skip the one we're removing
-						newContent += `
-				.multi-select-pill[data-sanitized-content="${sanitized}"] {
-					background-color: ${color} !important;
-				}`;
-					}
-				}
-			});
-			
-			styleEl.textContent = newContent;
+		const styleEl = document.getElementById('colored-bases-properties-style') as HTMLStyleElement;
+		if (!styleEl?.sheet) return;
+
+		// Remove all rules that match this sanitized content
+		const rulesToRemove = [];
+		for (let i = 0; i < styleEl.sheet.cssRules.length; i++) {
+			if (styleEl.sheet.cssRules[i].cssText.includes(`data-sanitized-content="${sanitizedContent}"`)) {
+				rulesToRemove.push(i);
+			}
 		}
+		
+		// Remove in reverse order to maintain indices
+		rulesToRemove.reverse().forEach(index => styleEl.sheet?.deleteRule(index));
 	}
 
 	updateColorRule(originalText: string, newColor: string) {
@@ -159,155 +159,150 @@ export default class ColoredPropertyListsPlugin extends Plugin {
 	}
 
 	clearAllColorRules() {
-		// Clear all style rules
-		this.addedStyleRules.clear();
-		// Reset the style element to only base styles
-		const styleEl = document.getElementById('colored-property-lists-style');
+		const styleEl = document.getElementById('colored-bases-properties-style') as HTMLStyleElement;
 		if (styleEl) {
-			styleEl.textContent = BASE_PILL_STYLES;
+			styleEl.textContent = '';
 		}
-		
-		// Remove data attributes from all existing pills so they can be reprocessed
-		const pillElements = document.querySelectorAll('.multi-select-pill[data-sanitized-content]');
-		pillElements.forEach((element: Element) => {
-			element.removeAttribute('data-sanitized-content');
-		});
+		setTimeout(() => this.processProperties(), 10);
 	}
 
 	removeStyleElement() {
-		const styleEl = document.getElementById('colored-property-lists-style');
-		if (styleEl) {
-			styleEl.remove();
-		}
+		document.getElementById('colored-bases-properties-style')?.remove();
 	}
 
-	analyzeBasesContent() {
-		// Clear any existing debounce timer
-		if (this.debounceTimer) {
-			clearTimeout(this.debounceTimer);
-		}
-
-		// Debounce the analysis (only for scroll events)
-		this.debounceTimer = window.setTimeout(() => {
-			this.processListProperties();
-		}, 100);
-	}
-
-	processListProperties() {
-		// Find all multi-select pill content elements in both Bases view and file properties
-		const pillElements = document.querySelectorAll('.multi-select-pill');
+	processProperties() {
 		let settingsChanged = false;
 		
-		pillElements.forEach((element: Element) => {
-			const div = element as HTMLDivElement;
-			// For file properties, the text is in .multi-select-pill-content
-			const contentElement = div.querySelector('.multi-select-pill-content') as HTMLElement;
-			const textContent = contentElement ? contentElement.textContent || '' : div.textContent || '';
-			
-			// Only process if not already processed and has content
-			if (textContent && !div.hasAttribute('data-sanitized-content')) {
-				// Sanitize text content for CSS selector (remove spaces but keep accents and alphanumeric)
-				const sanitized = textContent.replace(/\s+/g, '').replace(/[^\w\u00C0-\u017F-]/g, '');
+		// Process list properties
+		if (this.settings.colorListProperties) {
+			document.querySelectorAll('.multi-select-pill').forEach((element: Element) => {
+				const div = element as HTMLDivElement;
+				const contentElement = div.querySelector('.multi-select-pill-content') as HTMLElement;
+				const textContent = contentElement?.textContent || div.textContent || '';
 				
-				// Add data attribute with sanitized version
+				if (textContent) {
+					const sanitized = textContent.replace(/\s+/g, '').replace(/[^\w\u00C0-\u017F-]/g, '');
+					div.setAttribute('data-sanitized-content', sanitized);
+					
+					if (!this.settings.pillColors.hasOwnProperty(textContent)) {
+						const generatedColor = this.generateColorFromText(sanitized);
+						this.settings.pillColors[textContent] = generatedColor;
+						this.settings.pillEnabled[textContent] = true; // Enable by default
+						settingsChanged = true;
+						this.addColorRule(sanitized, generatedColor);
+					} else if (this.settings.pillColors[textContent]) {
+						// Ensure enabled state exists for existing properties
+						if (!this.settings.pillEnabled.hasOwnProperty(textContent)) {
+							this.settings.pillEnabled[textContent] = true;
+							settingsChanged = true;
+						}
+						// Only add color rule if property is enabled
+						if (this.settings.pillEnabled[textContent] !== false) {
+							this.addColorRule(sanitized, this.settings.pillColors[textContent]);
+						}
+					}
+				}
+			});
+		}
+		
+		// Process formula properties
+		if (this.settings.colorFormulaProperties) {
+			document.querySelectorAll('div.bases-td[data-property^="formula"] > div.bases-rendered-value').forEach((element: Element) => {
+				const div = element as HTMLDivElement;
+				
+				// Skip if this element contains an image (check multiple ways for robustness)
+				if (div.querySelector('img') || 
+				    div.querySelector('svg') || 
+				    div.innerHTML.includes('<img') || 
+				    div.innerHTML.includes('<svg') ||
+				    div.classList.contains('has-image')) {
+					// Remove any existing data attribute to prevent coloring
+					div.removeAttribute('data-sanitized-content');
+					return;
+				}
+				
+				const textContent = div.textContent?.trim() || '';
+				
+				// Also skip if no meaningful text content (might be image-only)
+				if (!textContent || textContent.length === 0) {
+					div.removeAttribute('data-sanitized-content');
+					return;
+				}
+				
+				const sanitized = textContent.replace(/\s+/g, '').replace(/[^\w\u00C0-\u017F-]/g, '');
 				div.setAttribute('data-sanitized-content', sanitized);
 				
-				// Store original text as key in settings (no sanitization needed for object keys)
 				if (!this.settings.pillColors.hasOwnProperty(textContent)) {
-					// Generate a color based on the sanitized content
 					const generatedColor = this.generateColorFromText(sanitized);
 					this.settings.pillColors[textContent] = generatedColor;
+					this.settings.pillEnabled[textContent] = true; // Enable by default
 					settingsChanged = true;
-					
-					// Add the color rule to the style element
 					this.addColorRule(sanitized, generatedColor);
-				} else if (this.settings.pillColors[textContent] && !this.addedStyleRules.has(sanitized)) {
-					// If color exists but rule not added yet, add it
-					this.addColorRule(sanitized, this.settings.pillColors[textContent]);
+				} else if (this.settings.pillColors[textContent]) {
+					// Ensure enabled state exists for existing properties
+					if (!this.settings.pillEnabled.hasOwnProperty(textContent)) {
+						this.settings.pillEnabled[textContent] = true;
+						settingsChanged = true;
+					}
+					// Only add color rule if property is enabled
+					if (this.settings.pillEnabled[textContent] !== false) {
+						this.addColorRule(sanitized, this.settings.pillColors[textContent]);
+					}
 				}
-			}
-		});
+			});
+		}
 		
-		// Save settings if new pills were detected
 		if (settingsChanged) {
 			this.saveSettings();
 		}
 	}
 
 	setupViewportListener() {
-		// Clear any existing listener first
 		this.clearViewportListener();
 		
-		// Find the actual view container for scrolling
-		const basesViewEl = document.querySelector('.bases-view') as HTMLElement;
-		const filePropsViewEl = document.querySelector('.workspace-leaf-content[data-type="file-properties"]') as HTMLElement;
-		
-		let targetElement = basesViewEl || filePropsViewEl;
+		const targetElement = document.querySelector('.bases-view') || 
+		                     document.querySelector('.workspace-leaf-content[data-type="file-properties"]') ||
+		                     document.querySelector('.workspace-leaf.mod-active .workspace-leaf-content');
 		
 		if (targetElement) {
-			this.contentElement = targetElement;
+			this.contentElement = targetElement as HTMLElement;
 			this.scrollEventRef = () => {
-				this.analyzeBasesContent(); // This will be debounced
+				if (this.scrollTimer) clearTimeout(this.scrollTimer);
+				this.scrollTimer = window.setTimeout(() => this.processProperties(), 150);
 			};
-			this.registerDomEvent(targetElement, 'scroll', this.scrollEventRef);
 			
-			// Setup mutation observer to detect when pills are recreated after editing
-			this.setupMutationObserver(targetElement);
-		} else {
-			// Fallback to the active leaf content
-			const contentEl = document.querySelector('.workspace-leaf.mod-active .workspace-leaf-content') as HTMLElement;
-			if (contentEl) {
-				this.contentElement = contentEl;
-				this.scrollEventRef = () => {
-					this.analyzeBasesContent(); // This will be debounced
-				};
-				this.registerDomEvent(contentEl, 'scroll', this.scrollEventRef);
-				
-				// Setup mutation observer
-				this.setupMutationObserver(contentEl);
-			}
+			this.registerDomEvent(this.contentElement, 'scroll', this.scrollEventRef);
+			this.setupMutationObserver(this.contentElement);
 		}
 	}
 
 	setupMutationObserver(targetElement: HTMLElement) {
-		// Clear any existing observer
 		this.clearMutationObserver();
 		
 		this.mutationObserver = new MutationObserver((mutations) => {
-			let shouldReprocess = false;
-			
-			mutations.forEach((mutation) => {
-				// Check if pills were added or modified
-				if (mutation.type === 'childList') {
-					// Check if any added nodes contain multi-select pills
-					mutation.addedNodes.forEach((node) => {
-						if (node.nodeType === Node.ELEMENT_NODE) {
-							const element = node as Element;
-							if (element.classList?.contains('multi-select-pill') || 
-								element.querySelector?.('.multi-select-pill')) {
-								shouldReprocess = true;
-							}
-						}
-					});
-				}
-			});
+			const shouldReprocess = mutations.some(mutation => 
+				mutation.type === 'childList' && 
+				Array.from(mutation.addedNodes).some((node: Node) => {
+					if (node.nodeType !== Node.ELEMENT_NODE) return false;
+					const element = node as Element;
+					return element.classList?.contains('multi-select-pill') || 
+					       element.querySelector?.('.multi-select-pill') ||
+					       (element.classList?.contains('bases-rendered-value') && 
+					        !element.querySelector('img') && 
+					        !element.querySelector('svg') && 
+					        !element.innerHTML.includes('<img') &&
+					        !element.innerHTML.includes('<svg')) ||
+					       element.querySelector?.('div.bases-td[data-property^="formula"] > div.bases-rendered-value');
+				})
+			);
 			
 			if (shouldReprocess) {
-				// Debounce the reprocessing to avoid too many calls during editing
-				if (this.debounceTimer) {
-					clearTimeout(this.debounceTimer);
-				}
-				this.debounceTimer = window.setTimeout(() => {
-					this.processListProperties();
-				}, 200);
+				// Add a small delay to ensure DOM has fully settled after mutations
+				setTimeout(() => this.processProperties(), 50);
 			}
 		});
 		
-		// Observe changes to the Bases view container
-		this.mutationObserver.observe(targetElement, {
-			childList: true,
-			subtree: true
-		});
+		this.mutationObserver.observe(targetElement, { childList: true, subtree: true });
 	}
 
 	clearMutationObserver() {
@@ -318,20 +313,17 @@ export default class ColoredPropertyListsPlugin extends Plugin {
 	}
 
 	clearViewportListener() {
-		// Clear the debounce timer when switching away from Bases view
-		if (this.debounceTimer) {
-			clearTimeout(this.debounceTimer);
-			this.debounceTimer = null;
+		if (this.scrollTimer) {
+			clearTimeout(this.scrollTimer);
+			this.scrollTimer = null;
 		}
 		
-		// Remove the scroll event listener manually
 		if (this.contentElement && this.scrollEventRef) {
 			this.contentElement.removeEventListener('scroll', this.scrollEventRef);
 			this.scrollEventRef = null;
 			this.contentElement = null;
 		}
 		
-		// Clear the mutation observer
 		this.clearMutationObserver();
 	}
 }

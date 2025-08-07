@@ -1,12 +1,18 @@
 import { App, Modal, PluginSettingTab, Setting } from 'obsidian';
-import type ColoredPropertyListsPlugin from './main';
+import type ColoredBasesPropertiesPlugin from './main';
 
-export interface ColoredPropertyListsPluginSettings {
+export interface ColoredBasesPropertiesPluginSettings {
 	pillColors: Record<string, string>;
+	pillEnabled: Record<string, boolean>;
+	colorListProperties: boolean;
+	colorFormulaProperties: boolean;
 }
 
-export const DEFAULT_SETTINGS: ColoredPropertyListsPluginSettings = {
-	pillColors: {}
+export const DEFAULT_SETTINGS: ColoredBasesPropertiesPluginSettings = {
+	pillColors: {},
+	pillEnabled: {},
+	colorListProperties: true,
+	colorFormulaProperties: false
 }
 
 export class ColorPickerModal extends Modal {
@@ -180,10 +186,10 @@ export class ColorPickerModal extends Modal {
 	}
 }
 
-export class ColoredPropertyListsSettingTab extends PluginSettingTab {
-	plugin: ColoredPropertyListsPlugin;
+export class ColoredBasesPropertiesSettingTab extends PluginSettingTab {
+	plugin: ColoredBasesPropertiesPlugin;
 
-	constructor(app: App, plugin: ColoredPropertyListsPlugin) {
+	constructor(app: App, plugin: ColoredBasesPropertiesPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
@@ -193,11 +199,55 @@ export class ColoredPropertyListsSettingTab extends PluginSettingTab {
 
 		containerEl.empty();
 
+		containerEl.createEl('h2', { text: 'Property Types' });
+
+		// Toggle for list properties
+		new Setting(containerEl)
+			.setName('Color list properties')
+			.setDesc('Enable coloring for list properties (multi-select pills)')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.colorListProperties)
+				.onChange(async (value) => {
+					this.plugin.settings.colorListProperties = value;
+					await this.plugin.saveSettings();
+					
+					// Update styles immediately
+					if (value) {
+						// Re-enable list property coloring
+						this.plugin.processProperties();
+					} else {
+						// Disable list property coloring - will be handled in main.ts
+						this.plugin.processProperties();
+					}
+				}));
+
+		// Toggle for formula properties  
+		new Setting(containerEl)
+			.setName('Color formula properties')
+			.setDesc('Enable coloring for formula properties (rendered values)')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.colorFormulaProperties)
+				.onChange(async (value) => {
+					this.plugin.settings.colorFormulaProperties = value;
+					await this.plugin.saveSettings();
+					
+					// Update styles immediately
+					if (value) {
+						// Enable formula property coloring
+						this.plugin.processProperties();
+					} else {
+						// Disable formula property coloring - will be handled in main.ts
+						this.plugin.processProperties();
+					}
+				}));
+
+		containerEl.createEl('h2', { text: 'Property Colors' });
+
 		// Clear all button
 		if (Object.keys(this.plugin.settings.pillColors).length > 0) {
 			new Setting(containerEl)
 				.setName('Clear all')
-				.setDesc('Remove all detected property list. Colors will be regenerated when you open a Bases file with property lists.')
+				.setDesc('Remove all detected property values. Colors will be regenerated when you open a Bases file with properties.')
 				.addButton(button => button
 					.setButtonText('Clear all')
 					.setCta()
@@ -209,7 +259,7 @@ export class ColoredPropertyListsSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 						// Immediately reprocess to generate new colors
 						setTimeout(() => {
-							this.plugin.processListProperties();
+							this.plugin.processProperties();
 						}, 50);
 						this.display(); // Refresh the settings display
 					}));
@@ -219,7 +269,7 @@ export class ColoredPropertyListsSettingTab extends PluginSettingTab {
 		
 		if (Object.keys(this.plugin.settings.pillColors).length === 0) {
 			pillsContainer.createEl('p', {
-				text: 'No property list values detected yet. Open a Bases file with property lists to automatically detect values.',
+				text: 'No property values detected yet. Open a Bases file with properties to automatically detect values.',
 				cls: 'setting-item-description'
 			});
 		} else {
@@ -277,22 +327,47 @@ export class ColoredPropertyListsSettingTab extends PluginSettingTab {
 							}))
 						.addButton(button => button
 							.setIcon('trash')
-							.setTooltip('Delete this property list value')
+							.setTooltip('Delete this property value')
 							.onClick(async () => {
 								// Remove the style rule immediately
 								const sanitized = pillName.replace(/\s+/g, '').replace(/[^\w\u00C0-\u017F-]/g, '');
 								this.plugin.removeColorRule(sanitized);
 								
-								// Remove data attributes from matching pills so they can be reprocessed
-								const pillElements = document.querySelectorAll(`.multi-select-pill[data-sanitized-content="${sanitized}"]`);
-								pillElements.forEach((element: Element) => {
+								// Remove data attributes from matching elements so they can be reprocessed
+								const listElements = document.querySelectorAll(`.multi-select-pill[data-sanitized-content="${sanitized}"]`);
+								const formulaElements = document.querySelectorAll(`div.bases-td[data-property^="formula"] > div.bases-rendered-value[data-sanitized-content="${sanitized}"]`);
+								listElements.forEach((element: Element) => {
+									element.removeAttribute('data-sanitized-content');
+								});
+								formulaElements.forEach((element: Element) => {
 									element.removeAttribute('data-sanitized-content');
 								});
 								
 								// Remove from settings
 								delete this.plugin.settings.pillColors[pillName];
+								delete this.plugin.settings.pillEnabled[pillName];
 								await this.plugin.saveSettings();
 								this.display(); // Refresh the settings display
+							}))
+						.addToggle(toggle => toggle
+							.setValue(this.plugin.settings.pillEnabled[pillName] ?? true)
+							.setTooltip('Enable/disable coloring for this property')
+							.onChange(async (value) => {
+								this.plugin.settings.pillEnabled[pillName] = value;
+								await this.plugin.saveSettings();
+								
+								// Update coloring immediately
+								const sanitized = pillName.replace(/\s+/g, '').replace(/[^\w\u00C0-\u017F-]/g, '');
+								if (value) {
+									// Re-enable coloring
+									const color = this.plugin.settings.pillColors[pillName];
+									if (color) {
+										this.plugin.addColorRule(sanitized, color);
+									}
+								} else {
+									// Disable coloring
+									this.plugin.removeColorRule(sanitized);
+								}
 							}));
 					
 					// Style the pill name with background color and rounded appearance

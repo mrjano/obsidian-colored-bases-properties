@@ -1,6 +1,6 @@
-# Colored Property Lists
+# Colored Bases Properties
 
-An Obsidian plugin that automatically detects and colors property list values in both Bases files and the file properties pane, making it easier to visually distinguish between different values.
+An Obsidian plugin that automatically detects and colors property values in Bases files, supporting both list properties (multi-select pills) and formula properties (rendered values), making it easier to visually distinguish between different values.
 
 ![table screenshot](screenshots/table.png)
 
@@ -8,29 +8,35 @@ An Obsidian plugin that automatically detects and colors property list values in
 
 ## Features
 
-- **Automatic Detection**: Automatically detects property list values (multi-select pills) in Bases files and file properties pane
+- **Dual Property Support**: Colors both list properties (multi-select pills) and formula properties (rendered values)
+- **Property Type Toggles**: Enable/disable coloring for each property type independently
+- **Automatic Detection**: Automatically detects property values in Bases files and file properties pane
 - **Consistent Coloring**: Generates consistent colors for each unique property value using a hash-based algorithm
-- **Visual Settings**: Clean settings interface with visual pill previews showing actual colors
+- **Visual Settings**: Clean settings interface with visual property previews showing actual colors
 - **Color Customization**: 
   - Manual color entry in hex or HSL format
   - Visual color picker with preview and OK/Cancel buttons
   - Reset button to restore automatically calculated colors
 - **Real-time Updates**: Colors update immediately when changed in settings
 - **Cross-Context Support**: Works in both Bases view and file properties pane
-- **White Text**: All pills use white text for optimal readability across different background colors
 
 ## How it Works
 
-1. **Detection**: The plugin scans for `.multi-select-pill` elements in both Bases files and the file properties pane
+1. **Detection**: The plugin scans for `.multi-select-pill` elements (list properties) and `.bases-rendered-value` elements (formula properties)
 2. **Color Generation**: Each unique property value gets a consistent color generated from its text content using HSL color space
-3. **Styling**: CSS rules are dynamically injected to color the pills with the generated or custom colors
+3. **Styling**: CSS rules are dynamically injected to color the properties with the generated or custom colors
 4. **Settings Management**: All detected values appear in the plugin settings where you can customize their colors
 
 ## Settings
 
-The plugin settings provide a clean interface for managing property list colors:
+The plugin settings provide a clean interface for managing property colors:
 
-- **Visual Pills**: Each setting shows a colored pill preview on the left side
+### Property Types
+- **Color list properties**: Toggle to enable/disable coloring of list properties (enabled by default)
+- **Color formula properties**: Toggle to enable/disable coloring of formula properties (disabled by default)
+
+### Property Colors
+- **Visual Previews**: Each setting shows a colored property preview on the left side
 - **Color Input**: Text field for manual color entry (supports both hex and HSL formats)
 - **Color Picker**: Palette button opens a modal with visual color picker and live preview
 - **Reset Button**: Restore the automatically calculated default color
@@ -82,3 +88,4 @@ For Obsidian plugin development, see the [official API documentation](https://gi
 ## Release history
 - 0.1.0 : first version published on Github
 - 0.1.1 : correction brought to manifest.json to satisfy community plugin requirements
+- 0.2.0 : added coloring of formula properties
