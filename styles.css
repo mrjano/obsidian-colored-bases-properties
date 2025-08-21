@@ -21,3 +21,9 @@ div.bases-td[data-property^="formula"] > div.bases-rendered-value[data-sanitized
 	align-items: center;
 	height: 1.3em;
 }
+
+/* Base styles for inline tags */
+span[class*="cm-tag-"] {
+	transition: background-color 0.2s ease;
+	color: white !important;
+}

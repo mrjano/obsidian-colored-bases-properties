@@ -6,13 +6,17 @@ export interface ColoredBasesPropertiesPluginSettings {
 	pillEnabled: Record<string, boolean>;
 	colorListProperties: boolean;
 	colorFormulaProperties: boolean;
+	colorEmbeddedBases: boolean;
+	colorInlineTags: boolean;
 }
 
 export const DEFAULT_SETTINGS: ColoredBasesPropertiesPluginSettings = {
 	pillColors: {},
 	pillEnabled: {},
 	colorListProperties: true,
-	colorFormulaProperties: false
+	colorFormulaProperties: false,
+	colorEmbeddedBases: true,
+	colorInlineTags: true
 }
 
 export class ColorPickerModal extends Modal {
@@ -237,6 +241,46 @@ export class ColoredBasesPropertiesSettingTab extends PluginSettingTab {
 						this.plugin.processProperties();
 					} else {
 						// Disable formula property coloring - will be handled in main.ts
+						this.plugin.processProperties();
+					}
+				}));
+
+		// Toggle for embedded bases
+		new Setting(containerEl)
+			.setName('Color embedded bases')
+			.setDesc('Enable coloring for properties within embedded bases (respects list and formula property settings)')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.colorEmbeddedBases)
+				.onChange(async (value) => {
+					this.plugin.settings.colorEmbeddedBases = value;
+					await this.plugin.saveSettings();
+					
+					// Update styles immediately
+					if (value) {
+						// Enable embedded bases property coloring
+						this.plugin.processProperties();
+					} else {
+						// Disable embedded bases property coloring - will be handled in main.ts
+						this.plugin.processProperties();
+					}
+				}));
+
+		// Toggle for inline tags
+		new Setting(containerEl)
+			.setName('Color inline tags')
+			.setDesc('Enable coloring for inline tags in markdown and reading mode')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.colorInlineTags)
+				.onChange(async (value) => {
+					this.plugin.settings.colorInlineTags = value;
+					await this.plugin.saveSettings();
+					
+					// Update styles immediately
+					if (value) {
+						// Enable inline tags coloring
+						this.plugin.processProperties();
+					} else {
+						// Disable inline tags coloring - will be handled in main.ts
 						this.plugin.processProperties();
 					}
 				}));

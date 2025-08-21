@@ -1,6 +1,6 @@
 # Colored Bases Properties
 
-An Obsidian plugin that automatically detects and colors property values in Bases files, supporting both list properties (multi-select pills) and formula properties (rendered values), making it easier to visually distinguish between different values.
+An Obsidian plugin that automatically detects and colors property values in Bases files, embedded bases, supporting list properties (multi-select pills), formula properties (rendered values), and inline tags.
 
 ![table screenshot](screenshots/table.png)
 
@@ -8,9 +8,11 @@ An Obsidian plugin that automatically detects and colors property values in Base
 
 ## Features
 
-- **Dual Property Support**: Colors both list properties (multi-select pills) and formula properties (rendered values)
+- **Multiple Property Support**: Colors list properties (multi-select pills) and formula properties (rendered values)
 - **Property Type Toggles**: Enable/disable coloring for each property type independently
-- **Automatic Detection**: Automatically detects property values in Bases files and file properties pane
+- **Cross-Context Support**: Works in Bases view, file properties pane, embedded bases, and markdown views
+- **Embedded Bases Support**: Colors properties within embedded bases while respecting individual property type settings
+- **Inline Tags Support**: Colors markdown tags (#tag) with automatic detection and consistent coloring
 - **Consistent Coloring**: Generates consistent colors for each unique property value using a hash-based algorithm
 - **Visual Settings**: Clean settings interface with visual property previews showing actual colors
 - **Color Customization**: 
@@ -18,14 +20,19 @@ An Obsidian plugin that automatically detects and colors property values in Base
   - Visual color picker with preview and OK/Cancel buttons
   - Reset button to restore automatically calculated colors
 - **Real-time Updates**: Colors update immediately when changed in settings
-- **Cross-Context Support**: Works in both Bases view and file properties pane
+- **Performance Optimized**: Debounced processing to avoid performance issues during rapid typing
 
 ## How it Works
 
-1. **Detection**: The plugin scans for `.multi-select-pill` elements (list properties) and `.bases-rendered-value` elements (formula properties)
+1. **Detection**: The plugin scans for:
+   - `.multi-select-pill` elements (list properties)
+   - `.bases-rendered-value` elements (formula properties)
+   - `.internal-embed.bases-embed` elements (embedded bases)
+   - `span[class*="cm-tag-"]` elements (inline tags)
 2. **Color Generation**: Each unique property value gets a consistent color generated from its text content using HSL color space
-3. **Styling**: CSS rules are dynamically injected to color the properties with the generated or custom colors
-4. **Settings Management**: All detected values appear in the plugin settings where you can customize their colors
+3. **Smart Processing**: Respects individual property type settings (e.g., embedded bases only colors list properties if list property coloring is enabled)
+4. **Styling**: CSS rules are dynamically injected to color the properties with the generated or custom colors
+5. **Settings Management**: All detected values appear in the plugin settings where you can customize their colors
 
 ## Settings
 
@@ -34,6 +41,8 @@ The plugin settings provide a clean interface for managing property colors:
 ### Property Types
 - **Color list properties**: Toggle to enable/disable coloring of list properties (enabled by default)
 - **Color formula properties**: Toggle to enable/disable coloring of formula properties (disabled by default)
+- **Color embedded bases**: Toggle to enable/disable coloring of properties within embedded bases (enabled by default, respects individual property type settings)
+- **Color inline tags**: Toggle to enable/disable coloring of inline tags in markdown (enabled by default)
 
 ### Property Colors
 - **Visual Previews**: Each setting shows a colored property preview on the left side
@@ -89,3 +98,8 @@ For Obsidian plugin development, see the [official API documentation](https://gi
 - 0.1.0 : first version published on Github
 - 0.1.1 : correction brought to manifest.json to satisfy community plugin requirements
 - 0.2.0 : added coloring of formula properties
+- 0.3.0 : major refactoring and feature expansion
+  - **Code Architecture**: Refactored duplicate logic into reusable, configuration-driven system for easier maintenance and extensibility
+  - **Embedded Bases Support**: Added support for coloring properties within embedded bases (respects individual property type settings)
+  - **Inline Tags Support**: Added support for coloring inline markdown tags (#tag) with automatic detection and debounced processing to avoid partial tag coloring during typing
+  - **Enhanced Character Support**: Improved sanitization to preserve "+" and "-" characters in property names

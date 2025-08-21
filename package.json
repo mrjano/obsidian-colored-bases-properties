@@ -1,6 +1,6 @@
 {
 	"name": "colored-bases-properties",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"description": "Obsidian plugin to color property lists and formula properties in Bases.",
 	"main": "main.js",
 	"scripts": {
