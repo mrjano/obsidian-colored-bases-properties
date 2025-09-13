@@ -4,11 +4,12 @@ import { ColoredBasesPropertiesPluginSettings, DEFAULT_SETTINGS, ColoredBasesPro
 export default class ColoredBasesPropertiesPlugin extends Plugin {
 	settings: ColoredBasesPropertiesPluginSettings;
 	private scrollTimer: number | null = null;
-	private editorChangeTimer: number | null = null; // Separate timer for editor changes
+	private editorChangeTimer: number | null = null;
 	private currentBasesView: any = null;
 	private scrollEventRef: (() => void) | null = null;
 	private contentElement: HTMLElement | null = null;
 	private mutationObserver: MutationObserver | null = null;
+	private isProcessing: boolean = false; // Add concurrency guard
 
 	async onload() {
 		await this.loadSettings();
@@ -23,7 +24,7 @@ export default class ColoredBasesPropertiesPlugin extends Plugin {
 		Object.entries(this.settings.pillColors).forEach(([originalText, color]) => {
 			if (color && (this.settings.pillEnabled[originalText] !== false)) { // Only add if color is set and enabled
 				const sanitized = originalText.replace(/\s+/g, '').replace(/[^\w\u00C0-\u017F+\-]/g, '');
-				this.addColorRule(sanitized, color);
+				this.addColorRule(sanitized, color, originalText);
 			}
 		});
 
@@ -73,8 +74,8 @@ export default class ColoredBasesPropertiesPlugin extends Plugin {
 			
 			// Check if this is a Bases file, file properties view, or markdown view (which might contain embedded bases)
 			if (view?.getViewType() === 'bases' || 
-			    view?.getViewType() === 'file-properties' || 
-			    view?.getViewType() === 'markdown') {
+				view?.getViewType() === 'file-properties' || 
+				view?.getViewType() === 'markdown') {
 				this.currentBasesView = view;
 				// Add a small delay to ensure DOM is fully rendered
 				setTimeout(() => {
@@ -123,33 +124,17 @@ export default class ColoredBasesPropertiesPlugin extends Plugin {
 		return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
 	}
 
-	addColorRule(sanitizedContent: string, color: string, isInlineTag: boolean = false) {
+	addColorRule(sanitizedContent: string, color: string, originalText: string, isInlineTag: boolean = false) {
 		const styleEl = document.getElementById('colored-bases-properties-style') as HTMLStyleElement;
 		if (!styleEl) return;
 
-		// Find the original text from sanitized content to check if enabled
-		const originalText = Object.keys(this.settings.pillColors).find(key => {
-			const sanitized = key.replace(/\s+/g, '').replace(/[^\w\u00C0-\u017F+\-]/g, '');
-			return sanitized === sanitizedContent;
-		});
-		
 		// Skip if this property is disabled
 		if (originalText && this.settings.pillEnabled[originalText] === false) {
 			return;
 		}
 
-		// Remove existing rules for this content
-		const rulesToRemove = [];
-		for (let i = 0; i < (styleEl.sheet?.cssRules.length || 0); i++) {
-			const rule = styleEl.sheet!.cssRules[i];
-			if (rule.cssText.includes(`data-sanitized-content="${sanitizedContent}"`) ||
-			    (isInlineTag && rule.cssText.includes(`cm-tag-${sanitizedContent}`))) {
-				rulesToRemove.push(i);
-			}
-		}
-		
-		// Remove in reverse order to maintain indices
-		rulesToRemove.reverse().forEach(index => styleEl.sheet?.deleteRule(index));
+		// Remove existing rules for this content (use existing method)
+		this.removeColorRule(sanitizedContent);
 
 		// Handle inline tags differently
 		if (isInlineTag) {
@@ -174,7 +159,7 @@ export default class ColoredBasesPropertiesPlugin extends Plugin {
 			);
 		}
 
-		// Add new rules for embedded bases (only if embedded bases setting is enabled and the respective property type is also enabled)
+		// Add new rules for embedded bases
 		if (this.settings.colorEmbeddedBases) {
 			if (this.settings.colorListProperties) {
 				styleEl.sheet?.insertRule(
@@ -213,7 +198,7 @@ export default class ColoredBasesPropertiesPlugin extends Plugin {
 		// First remove any existing rules for this content
 		this.removeColorRule(sanitized);
 		// Then add the new rule
-		this.addColorRule(sanitized, newColor);
+		this.addColorRule(sanitized, newColor, originalText);
 	}
 
 	clearAllColorRules() {
@@ -229,74 +214,29 @@ export default class ColoredBasesPropertiesPlugin extends Plugin {
 	}
 
 	processProperties() {
-		let settingsChanged = false;
+		// Prevent concurrent execution
+		if (this.isProcessing) {
+			return;
+		}
+		this.isProcessing = true;
 		
-		// Define property type configurations
-		const propertyTypes = [
-			{
-				enabled: this.settings.colorListProperties,
-				selector: '.multi-select-pill',
-				getTextContent: (element: HTMLDivElement) => {
-					const contentElement = element.querySelector('.multi-select-pill-content') as HTMLElement;
-					return contentElement?.textContent || element.textContent || '';
-				},
-				shouldSkip: () => false,
-			},
-			{
-				enabled: this.settings.colorFormulaProperties,
-				selector: 'div.bases-td[data-property^="formula"] > div.bases-rendered-value',
-				getTextContent: (element: HTMLDivElement) => element.textContent?.trim() || '',
-				shouldSkip: (element: HTMLDivElement) => {
-					// Skip if this element contains an image (check multiple ways for robustness)
-					if (element.querySelector('img') || 
-					    element.querySelector('svg') || 
-					    element.innerHTML.includes('<img') || 
-					    element.innerHTML.includes('<svg') ||
-					    element.classList.contains('has-image')) {
-						// Remove any existing data attribute to prevent coloring
-						element.removeAttribute('data-sanitized-content');
-						return true;
-					}
-					return false;
-				},
-			},
-			{
-				enabled: this.settings.colorInlineTags,
-				selector: 'span[class*="cm-tag-"]',
-				getTextContent: (element: HTMLDivElement) => {
-					// Extract tag name from class (e.g., cm-tag-mytag -> mytag)
-					const className = Array.from(element.classList).find(cls => cls.startsWith('cm-tag-'));
-					return className ? className.replace('cm-tag-', '') : '';
-				},
-				shouldSkip: (element: HTMLDivElement) => {
-					// Skip very short tags (likely partial while typing)
-					const tagName = Array.from(element.classList).find(cls => cls.startsWith('cm-tag-'))?.replace('cm-tag-', '') || '';
-					return tagName.length < 2; // Skip single character tags
-				},
-				isInlineTag: true, // Special flag to handle inline tags differently
-			}
-		];
-
-		// Add embedded bases configurations if enabled
-		if (this.settings.colorEmbeddedBases) {
-			// Add list properties within embedded bases (only if list properties are also enabled)
-			if (this.settings.colorListProperties) {
-				propertyTypes.push({
-					enabled: true, // Already checked both conditions above
-					selector: '.internal-embed.bases-embed .multi-select-pill',
+		try {
+			let settingsChanged = false;
+			
+			// Define property type configurations
+			const propertyTypes = [
+				{
+					enabled: this.settings.colorListProperties,
+					selector: '.multi-select-pill',
 					getTextContent: (element: HTMLDivElement) => {
 						const contentElement = element.querySelector('.multi-select-pill-content') as HTMLElement;
 						return contentElement?.textContent || element.textContent || '';
 					},
 					shouldSkip: () => false,
-				});
-			}
-
-			// Add formula properties within embedded bases (only if formula properties are also enabled)
-			if (this.settings.colorFormulaProperties) {
-				propertyTypes.push({
-					enabled: true, // Already checked both conditions above
-					selector: '.internal-embed.bases-embed div.bases-td[data-property^="formula"] > div.bases-rendered-value',
+				},
+				{
+					enabled: this.settings.colorFormulaProperties,
+					selector: 'div.bases-td[data-property^="formula"] > div.bases-rendered-value',
 					getTextContent: (element: HTMLDivElement) => element.textContent?.trim() || '',
 					shouldSkip: (element: HTMLDivElement) => {
 						// Skip if this element contains an image (check multiple ways for robustness)
@@ -311,19 +251,75 @@ export default class ColoredBasesPropertiesPlugin extends Plugin {
 						}
 						return false;
 					},
-				});
+				},
+				{
+					enabled: this.settings.colorInlineTags,
+					selector: 'span[class*="cm-tag-"]',
+					getTextContent: (element: HTMLDivElement) => {
+						// Extract tag name from class (e.g., cm-tag-mytag -> mytag)
+						const className = Array.from(element.classList).find(cls => cls.startsWith('cm-tag-'));
+						return className ? className.replace('cm-tag-', '') : '';
+					},
+					shouldSkip: (element: HTMLDivElement) => {
+						// Skip very short tags (likely partial while typing)
+						const tagName = Array.from(element.classList).find(cls => cls.startsWith('cm-tag-'))?.replace('cm-tag-', '') || '';
+						return tagName.length < 2; // Skip single character tags
+					},
+					isInlineTag: true, // Special flag to handle inline tags differently
+				}
+			];
+
+			// Add embedded bases configurations if enabled
+			if (this.settings.colorEmbeddedBases) {
+				// Add list properties within embedded bases (only if list properties are also enabled)
+				if (this.settings.colorListProperties) {
+					propertyTypes.push({
+						enabled: true, // Already checked both conditions above
+						selector: '.internal-embed.bases-embed .multi-select-pill',
+						getTextContent: (element: HTMLDivElement) => {
+							const contentElement = element.querySelector('.multi-select-pill-content') as HTMLElement;
+							return contentElement?.textContent || element.textContent || '';
+						},
+						shouldSkip: () => false,
+					});
+				}
+
+				// Add formula properties within embedded bases (only if formula properties are also enabled)
+				if (this.settings.colorFormulaProperties) {
+					propertyTypes.push({
+						enabled: true, // Already checked both conditions above
+						selector: '.internal-embed.bases-embed div.bases-td[data-property^="formula"] > div.bases-rendered-value',
+						getTextContent: (element: HTMLDivElement) => element.textContent?.trim() || '',
+						shouldSkip: (element: HTMLDivElement) => {
+							// Skip if this element contains an image (check multiple ways for robustness)
+							if (element.querySelector('img') || 
+							    element.querySelector('svg') || 
+							    element.innerHTML.includes('<img') || 
+							    element.innerHTML.includes('<svg') ||
+							    element.classList.contains('has-image')) {
+								// Remove any existing data attribute to prevent coloring
+								element.removeAttribute('data-sanitized-content');
+								return true;
+							}
+							return false;
+						},
+					});
+				}
 			}
-		}
-		
-		// Process each property type
-		for (const propertyType of propertyTypes) {
-			if (propertyType.enabled) {
-				settingsChanged = this.processPropertyType(propertyType) || settingsChanged;
+			
+			// Process each property type
+			for (const propertyType of propertyTypes) {
+				if (propertyType.enabled) {
+					settingsChanged = this.processPropertyType(propertyType) || settingsChanged;
+				}
 			}
-		}
-		
-		if (settingsChanged) {
-			this.saveSettings();
+			
+			if (settingsChanged) {
+				this.saveSettings();
+			}
+		} finally {
+			// Always reset the guard, even if an error occurs
+			this.isProcessing = false;
 		}
 	}
 
@@ -372,7 +368,7 @@ export default class ColoredBasesPropertiesPlugin extends Plugin {
 				this.settings.pillColors[textContent] = generatedColor;
 				this.settings.pillEnabled[textContent] = true; // Enable by default
 				settingsChanged = true;
-				this.addColorRule(sanitized, generatedColor, config.isInlineTag);
+				this.addColorRule(sanitized, generatedColor, textContent, config.isInlineTag);
 			} else if (this.settings.pillColors[textContent]) {
 				// Ensure enabled state exists for existing properties
 				if (!this.settings.pillEnabled.hasOwnProperty(textContent)) {
@@ -381,7 +377,7 @@ export default class ColoredBasesPropertiesPlugin extends Plugin {
 				}
 				// Only add color rule if property is enabled
 				if (this.settings.pillEnabled[textContent] !== false) {
-					this.addColorRule(sanitized, this.settings.pillColors[textContent], config.isInlineTag);
+					this.addColorRule(sanitized, this.settings.pillColors[textContent], textContent, config.isInlineTag);
 				}
 			}
 		});

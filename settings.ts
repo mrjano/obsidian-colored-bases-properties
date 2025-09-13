@@ -406,7 +406,7 @@ export class ColoredBasesPropertiesSettingTab extends PluginSettingTab {
 									// Re-enable coloring
 									const color = this.plugin.settings.pillColors[pillName];
 									if (color) {
-										this.plugin.addColorRule(sanitized, color);
+										this.plugin.addColorRule(sanitized, color, pillName);
 									}
 								} else {
 									// Disable coloring
