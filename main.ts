@@ -334,6 +334,7 @@ export default class ColoredBasesPropertiesPlugin extends Plugin {
 		isInlineTag?: boolean;
 	}): boolean {
 		let settingsChanged = false;
+		const processedProperties = new Set<string>(); // Track properties processed in this cycle
 		
 		document.querySelectorAll(config.selector).forEach((element: Element) => {
 			const div = element as HTMLDivElement;
@@ -359,6 +360,12 @@ export default class ColoredBasesPropertiesPlugin extends Plugin {
 			if (!config.isInlineTag) {
 				div.setAttribute('data-sanitized-content', sanitized);
 			}
+			
+			// Skip if we've already processed this property in this cycle
+			if (processedProperties.has(textContent)) {
+				return;
+			}
+			processedProperties.add(textContent);
 			
 			if (!this.settings.pillColors.hasOwnProperty(textContent)) {
 				const generatedColor = this.generateColorFromText(sanitized);

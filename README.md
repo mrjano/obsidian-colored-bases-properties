@@ -103,3 +103,4 @@ For Obsidian plugin development, see the [official API documentation](https://gi
   - **Embedded Bases Support**: Added support for coloring properties within embedded bases (respects individual property type settings)
   - **Inline Tags Support**: Added support for coloring inline markdown tags (#tag) with automatic detection and debounced processing to avoid partial tag coloring during typing
   - **Enhanced Character Support**: Improved sanitization to preserve "+" and "-" characters in property names
+- 0.3.1 : fixed color flickering issue during fast scrolling by preventing duplicate CSS rule processing for the same property within a single processing cycle
