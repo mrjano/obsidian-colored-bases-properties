@@ -27,3 +27,12 @@ span[class*="cm-tag-"] {
 	transition: background-color 0.2s ease;
 	color: white !important;
 }
+
+/* Base styles for tag elements in bases table cells */
+.bases-table-cell .tag[data-sanitized-content] {
+	transition: background-color 0.2s ease;
+	color: white !important;
+	border-radius: var(--pill-radius);
+	padding: 2px 8px;
+	text-decoration: none;
+}

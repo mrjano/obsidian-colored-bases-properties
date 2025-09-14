@@ -157,6 +157,10 @@ export default class ColoredBasesPropertiesPlugin extends Plugin {
 			styleEl.sheet?.insertRule(
 				`div.bases-td[data-property^="formula"] > div.bases-rendered-value[data-sanitized-content="${sanitizedContent}"]:not(:has(img)):not(:has(svg)) { background-color: ${color} !important; }`
 			);
+			// Add rules for tag elements within bases table cells
+			styleEl.sheet?.insertRule(
+				`.bases-table-cell .tag[data-sanitized-content="${sanitizedContent}"] { background-color: ${color} !important; }`
+			);
 		}
 
 		// Add new rules for embedded bases
@@ -170,6 +174,10 @@ export default class ColoredBasesPropertiesPlugin extends Plugin {
 			if (this.settings.colorFormulaProperties) {
 				styleEl.sheet?.insertRule(
 					`.internal-embed.bases-embed div.bases-td[data-property^="formula"] > div.bases-rendered-value[data-sanitized-content="${sanitizedContent}"]:not(:has(img)):not(:has(svg)) { background-color: ${color} !important; }`
+				);
+				// Add rules for tag elements within embedded bases
+				styleEl.sheet?.insertRule(
+					`.internal-embed.bases-embed .bases-table-cell .tag[data-sanitized-content="${sanitizedContent}"] { background-color: ${color} !important; }`
 				);
 			}
 		}
@@ -253,6 +261,12 @@ export default class ColoredBasesPropertiesPlugin extends Plugin {
 					},
 				},
 				{
+					enabled: this.settings.colorFormulaProperties,
+					selector: '.bases-table-cell .value-list-container .tag',
+					getTextContent: (element: HTMLDivElement) => element.textContent?.trim() || '',
+					shouldSkip: () => false,
+				},
+				{
 					enabled: this.settings.colorInlineTags,
 					selector: 'span[class*="cm-tag-"]',
 					getTextContent: (element: HTMLDivElement) => {
@@ -303,6 +317,14 @@ export default class ColoredBasesPropertiesPlugin extends Plugin {
 							}
 							return false;
 						},
+					});
+					
+					// Add tag properties within embedded bases
+					propertyTypes.push({
+						enabled: true, // Already checked both conditions above
+						selector: '.internal-embed.bases-embed .bases-table-cell .value-list-container .tag',
+						getTextContent: (element: HTMLDivElement) => element.textContent?.trim() || '',
+						shouldSkip: () => false,
 					});
 				}
 			}
@@ -423,6 +445,10 @@ export default class ColoredBasesPropertiesPlugin extends Plugin {
 						        !element.innerHTML.includes('<img') &&
 						        !element.innerHTML.includes('<svg')) ||
 						       element.querySelector?.('div.bases-td[data-property^="formula"] > div.bases-rendered-value') ||
+						       // Watch for tag elements within bases table cells
+						       element.classList?.contains('tag') ||
+						       element.querySelector?.('.bases-table-cell .tag') ||
+						       element.querySelector?.('.value-list-container .tag') ||
 						       // Watch for embedded bases
 						       element.classList?.contains('internal-embed') ||
 						       element.classList?.contains('bases-embed') ||

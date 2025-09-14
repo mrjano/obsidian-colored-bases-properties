@@ -105,3 +105,4 @@ For Obsidian plugin development, see the [official API documentation](https://gi
   - **Enhanced Character Support**: Improved sanitization to preserve "+" and "-" characters in property names
 - 0.3.1 : fixed color flickering issue during fast scrolling by preventing duplicate CSS rule processing for the same property within a single processing cycle
 - 0.3.2 : additional logic improvements in the code
+- 0.3.3 : added support for file.tags properties
