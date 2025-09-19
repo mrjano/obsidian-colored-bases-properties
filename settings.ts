@@ -170,32 +170,44 @@ export class ColoredBasesPropertiesSettingTab extends PluginSettingTab {
 				.forEach(pillName => {
 					const pillValue = this.plugin.settings.pillColors[pillName];
 					
-					const setting = new Setting(pillsContainer)
+					const setting = new Setting(pillsContainer);
+					let colorPickerComponent: any = null;
+					
+					setting
 						.addText(text => text
 							.setPlaceholder('Enter color (e.g., #FF0000 or hsl(180, 50%, 40%))')
 							.setValue(pillValue)
 							.onChange(async (value) => {
+								// Always save the input value to settings (even if invalid)
 								this.plugin.settings.pillColors[pillName] = value;
 								await this.plugin.saveSettings();
-								// Update the style rule immediately
-								if (value) {
+								
+								// Only update visual elements if the color is valid
+								if (value && this.isValidColor(value)) {
+									// Update the style rule immediately
 									this.plugin.updateColorRule(pillName, value);
+									// Update the pill preview and color picker
+									this.updatePillPreview(pillElement, pillName, value);
+									if (colorPickerComponent) {
+										colorPickerComponent.setValue(this.hslToHex(value));
+									}
 								}
-								// Update the pill preview
-								this.updatePillPreview(pillElement, pillName, value);
 							}))
-						.addColorPicker(color => color
-							.setValue(this.hslToHex(pillValue))
-							.onChange(async (value) => {
-								// Update settings
-								this.plugin.settings.pillColors[pillName] = value;
-								await this.plugin.saveSettings();
-								this.plugin.updateColorRule(pillName, value);
-								// Update the text input and pill preview
-								const textInput = setting.controlEl.querySelector('input[type="text"]') as HTMLInputElement;
-								if (textInput) textInput.value = value;
-								this.updatePillPreview(pillElement, pillName, value);
-							}))
+						.addColorPicker(color => {
+							colorPickerComponent = color;
+							return color
+								.setValue(this.hslToHex(pillValue))
+								.onChange(async (value) => {
+									// Update settings
+									this.plugin.settings.pillColors[pillName] = value;
+									await this.plugin.saveSettings();
+									this.plugin.updateColorRule(pillName, value);
+									// Update the text input and pill preview
+									const textInput = setting.controlEl.querySelector('input[type="text"]') as HTMLInputElement;
+									if (textInput) textInput.value = value;
+									this.updatePillPreview(pillElement, pillName, value);
+								})
+						})
 						.addExtraButton(button => button
 							.setIcon('reset')
 							.setTooltip('Restore default color')
@@ -209,9 +221,12 @@ export class ColoredBasesPropertiesSettingTab extends PluginSettingTab {
 								await this.plugin.saveSettings();
 								this.plugin.updateColorRule(pillName, defaultColor);
 								
-								// Update the text input and pill preview
+								// Update the text input, color picker, and pill preview
 								const textInput = setting.controlEl.querySelector('input[type="text"]') as HTMLInputElement;
 								if (textInput) textInput.value = defaultColor;
+								if (colorPickerComponent) {
+									colorPickerComponent.setValue(this.hslToHex(defaultColor));
+								}
 								this.updatePillPreview(pillElement, pillName, defaultColor);
 							}))
 						.addButton(button => button
@@ -334,6 +349,42 @@ export class ColoredBasesPropertiesSettingTab extends PluginSettingTab {
 		
 		// Fallback - return as-is
 		return hsl;
+	}
+
+	private isValidColor(color: string): boolean {
+		if (!color || color.trim() === '') {
+			return false;
+		}
+		
+		color = color.trim();
+		
+		// Check for valid hex color (3 or 6 digits, with or without #)
+		const hexRegex = /^#?([A-Fa-f0-9]{3}|[A-Fa-f0-9]{6})$/;
+		if (hexRegex.test(color)) {
+			return true;
+		}
+		
+		// Check for valid HSL color
+		const hslRegex = /^hsl\(\s*(\d+)\s*,\s*(\d+)%\s*,\s*(\d+)%\s*\)$/;
+		const hslMatch = color.match(hslRegex);
+		if (hslMatch) {
+			const h = parseInt(hslMatch[1]);
+			const s = parseInt(hslMatch[2]);
+			const l = parseInt(hslMatch[3]);
+			// Check if values are in valid ranges
+			return h >= 0 && h <= 360 && s >= 0 && s <= 100 && l >= 0 && l <= 100;
+		}
+		
+		// Check for valid CSS color names (basic validation)
+		const cssColorNames = [
+			'red', 'green', 'blue', 'white', 'black', 'yellow', 'cyan', 'magenta',
+			'orange', 'purple', 'pink', 'brown', 'gray', 'grey', 'transparent'
+		];
+		if (cssColorNames.includes(color.toLowerCase())) {
+			return true;
+		}
+		
+		return false;
 	}
 
 	private hexToHsl(hex: string): string {

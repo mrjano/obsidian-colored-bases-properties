@@ -107,3 +107,4 @@ For Obsidian plugin development, see the [official API documentation](https://gi
 - 0.3.2 : additional logic improvements in the code
 - 0.3.3 : added support for file.tags properties
 - 0.3.4 : implements the observations from [Obsidian reviewer](https://github.com/obsidianmd/obsidian-releases/pull/7255#issuecomment-3312756652). In particular, uses Obsidian native color picker in the settings.
+- 0.3.5 : improves color picking validation in the settings.
