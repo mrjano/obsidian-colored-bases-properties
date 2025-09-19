@@ -114,14 +114,13 @@ export default class ColoredBasesPropertiesPlugin extends Plugin {
 			hash = hash & hash; // Convert to 32-bit integer
 		}
 		
-		// Use hash to generate HSL values
-		const hue = Math.abs(hash) % 360;
-		// Medium saturation for balanced pastel colors
-		const saturation = 45 + (Math.abs(hash >> 8) % 20); // 45-65%
-		// Medium lightness for readable but not too bright colors
-		const lightness = 35 + (Math.abs(hash >> 16) % 15); // 35-50%
+		// Generate RGB values directly from different parts of the hash
+		// Use medium-range values for balanced, readable colors (avoiding too dark or too bright)
+		const r = 80 + (Math.abs(hash) % 120); // 80-199 range
+		const g = 80 + (Math.abs(hash >> 8) % 120); // 80-199 range  
+		const b = 80 + (Math.abs(hash >> 16) % 120); // 80-199 range
 		
-		return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+		return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 	}
 
 	addColorRule(sanitizedContent: string, color: string, originalText: string, isInlineTag: boolean = false) {
