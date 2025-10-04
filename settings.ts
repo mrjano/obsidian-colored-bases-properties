@@ -127,15 +127,13 @@ export class ColoredBasesPropertiesSettingTab extends PluginSettingTab {
 						this.plugin.processProperties();
 					} else {
 						// Disable inline tags coloring - will be handled in main.ts
-						this.plugin.processProperties();
-					}
-				}));
+					this.plugin.processProperties();
+				}
+			}));
 
 		new Setting(containerEl)
 			.setName('Property colors')
-			.setHeading();
-
-		// Clear all button
+			.setHeading();		// Clear all button
 		if (Object.keys(this.plugin.settings.pillColors).length > 0) {
 			new Setting(containerEl)
 				.setName('Clear all')

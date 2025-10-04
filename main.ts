@@ -71,16 +71,16 @@ export default class ColoredBasesPropertiesPlugin extends Plugin {
 	onLeafChange(leaf: any) {
 		if (leaf) {
 			const view = leaf.view;
+			const viewType = view?.getViewType();
 			
 			// Check if this is a Bases file, file properties view, or markdown view (which might contain embedded bases)
 			if (view?.getViewType() === 'bases' || 
 				view?.getViewType() === 'file-properties' || 
 				view?.getViewType() === 'markdown') {
 				this.currentBasesView = view;
-				// Add a small delay to ensure DOM is fully rendered
-				setTimeout(() => {
-					this.processProperties();
-				}, 100);
+				// Process properties immediately
+				this.processProperties();
+				// Set up viewport listener immediately
 				this.setupViewportListener();
 			} else {
 				// Clear current view if switching away
@@ -353,6 +353,8 @@ export default class ColoredBasesPropertiesPlugin extends Plugin {
 		let settingsChanged = false;
 		const processedProperties = new Set<string>(); // Track properties processed in this cycle
 		
+		const elements = document.querySelectorAll(config.selector);
+		
 		document.querySelectorAll(config.selector).forEach((element: Element) => {
 			const div = element as HTMLDivElement;
 			
@@ -409,20 +411,80 @@ export default class ColoredBasesPropertiesPlugin extends Plugin {
 	setupViewportListener() {
 		this.clearViewportListener();
 		
-		const targetElement = document.querySelector('.bases-view') || 
-		                     document.querySelector('.workspace-leaf-content[data-type="file-properties"]') ||
-		                     document.querySelector('.workspace-leaf-content[data-type="markdown"]') ||
-		                     document.querySelector('.workspace-leaf.mod-active .workspace-leaf-content');
+		// Try to find scrollable container - the actual scrolling element
+		// There might be multiple .bases-view elements, we need the one that's actually in the active leaf
+		const allBasesViews = document.querySelectorAll('.bases-view');
+		
+		let basesView: Element | null = null;
+		
+		// Find the bases-view that's in the active workspace leaf
+		if (allBasesViews.length > 0) {
+			for (const view of Array.from(allBasesViews)) {
+				const leaf = view.closest('.workspace-leaf.mod-active');
+				if (leaf) {
+					basesView = view;
+					break;
+				}
+			}
+			// If no active leaf, just use the first one
+			if (!basesView) {
+				basesView = allBasesViews[0];
+			}
+		}
+		
+		const workspaceLeafContent = document.querySelector('.workspace-leaf-content[data-type="bases"]') ||
+		                            document.querySelector('.workspace-leaf-content[data-type="file-properties"]') ||
+		                            document.querySelector('.workspace-leaf-content[data-type="markdown"]') ||
+		                            document.querySelector('.workspace-leaf.mod-active .workspace-leaf-content');
+		
+		// Find the scrollable element
+		let scrollableElement: HTMLElement | null = null;
+		
+		// First, check if .bases-view itself is scrollable
+		if (basesView) {
+			const basesViewEl = basesView as HTMLElement;
+			const style = window.getComputedStyle(basesViewEl);
+			const overflowY = style.overflowY;
+			const overflowX = style.overflowX;
+			
+			// Check if it has overflow set and will be scrollable (even if not yet scrollable due to content loading)
+			if (overflowY === 'auto' || overflowY === 'scroll' || overflowX === 'auto' || overflowX === 'scroll') {
+				scrollableElement = basesViewEl;
+			} else {
+				// Walk up the DOM tree to find the scrollable container
+				let element = basesViewEl.parentElement as HTMLElement;
+				while (element && element !== document.body) {
+					const elStyle = window.getComputedStyle(element);
+					const elOverflowY = elStyle.overflowY;
+					const elOverflowX = elStyle.overflowX;
+					
+					if (elOverflowY === 'auto' || elOverflowY === 'scroll' || elOverflowX === 'auto' || elOverflowX === 'scroll') {
+						scrollableElement = element;
+						break;
+					}
+					element = element.parentElement as HTMLElement;
+				}
+			}
+		}
+		
+		// Use scrollable element if found, otherwise fall back to workspace leaf content
+		const targetElement = scrollableElement || workspaceLeafContent;
 		
 		if (targetElement) {
 			this.contentElement = targetElement as HTMLElement;
+			
 			this.scrollEventRef = () => {
 				if (this.scrollTimer) clearTimeout(this.scrollTimer);
-				this.scrollTimer = window.setTimeout(() => this.processProperties(), 150);
+				// Small debounce to avoid processing on every single scroll event
+				this.scrollTimer = window.setTimeout(() => this.processProperties(), 50);
 			};
 			
+			// MUST use registerDomEvent for proper cleanup with Obsidian's plugin lifecycle
 			this.registerDomEvent(this.contentElement, 'scroll', this.scrollEventRef);
-			this.setupMutationObserver(this.contentElement);
+			
+			// Also set up mutation observer on the bases-view or target element
+			const observerTarget = (basesView as HTMLElement) || targetElement;
+			this.setupMutationObserver(observerTarget);
 		}
 	}
 
@@ -430,7 +492,7 @@ export default class ColoredBasesPropertiesPlugin extends Plugin {
 		this.clearMutationObserver();
 		
 		this.mutationObserver = new MutationObserver((mutations) => {
-			const shouldReprocess = mutations.some(mutation => {
+			const relevantMutations = mutations.filter(mutation => {
 				// Check for childList changes (new elements added)
 				if (mutation.type === 'childList') {
 					return Array.from(mutation.addedNodes).some((node: Node) => {
@@ -459,7 +521,7 @@ export default class ColoredBasesPropertiesPlugin extends Plugin {
 				return false;
 			});
 			
-			if (shouldReprocess) {
+			if (relevantMutations.length > 0) {
 				// Add a small delay to ensure DOM has fully settled after mutations
 				setTimeout(() => this.processProperties(), 50);
 			}
