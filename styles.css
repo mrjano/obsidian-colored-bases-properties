@@ -4,34 +4,34 @@ Base styles for property list values and formula properties
 */
 
 /* Base styles for property list values */
-.multi-select-pill[data-sanitized-content] {
+body .multi-select-pill[data-sanitized-content] {
 	transition: background-color 0.2s ease;
-	color: white !important;
+	color: white;
 }
 
 /* Base styles for formula properties - styled as pills */
-div.bases-td[data-property^="formula"] > div.bases-rendered-value[data-sanitized-content] {
+body div.bases-td[data-property^="formula"] > div.bases-rendered-value[data-sanitized-content] {
 	transition: background-color 0.2s ease;
-	color: white !important;
+	color: white;
 	border-radius: var(--pill-radius);
 	box-sizing: border-box;
-	width: auto !important;
-	max-width: none !important;
-	white-space: nowrap !important;
+	width: auto;
+	max-width: none;
+	white-space: nowrap;
 	align-items: center;
 	height: 1.3em;
 }
 
 /* Base styles for inline tags */
-span[class*="cm-tag-"] {
+body span[class*="cm-tag-"] {
 	transition: background-color 0.2s ease;
-	color: white !important;
+	color: white;
 }
 
 /* Base styles for tag elements in bases table cells */
-.bases-table-cell .tag[data-sanitized-content] {
+body .bases-table-cell .tag[data-sanitized-content] {
 	transition: background-color 0.2s ease;
-	color: white !important;
+	color: white;
 	border-radius: var(--pill-radius);
 	padding: 2px 8px;
 	text-decoration: none;

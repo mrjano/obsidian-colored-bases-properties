@@ -10,11 +10,13 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      attestations: write
+      id-token: write
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Use Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: "18.x"
 
@@ -22,6 +24,16 @@ jobs:
         run: |
           npm install
           npm run build
+
+      - name: Attest main.js provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: 'main.js'
+
+      - name: Attest styles.css provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: 'styles.css'
 
       - name: Create release
         env:

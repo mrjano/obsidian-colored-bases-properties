@@ -109,3 +109,8 @@ For Obsidian plugin development, see the [official API documentation](https://gi
 - 0.3.4 : implements the observations from [Obsidian reviewer](https://github.com/obsidianmd/obsidian-releases/pull/7255#issuecomment-3312756652). In particular, uses Obsidian native color picker in the settings.
 - 0.3.5 : improves color picking validation in the settings.
 - 0.3.6 : improves detection of scrolling event.
+- 0.3.7 : addresses Obsidian community plugin review observations:
+  - Replaces `builtin-modules` npm package with native Node.js `node:module` equivalent
+  - Removes `!important` from CSS rules by using increased selector specificity (`body` prefix)
+  - Adds GitHub artifact attestation for `main.js` and `styles.css` in the release workflow
+  - Adds `package-lock.json` lockfile for reproducible builds
