@@ -150,6 +150,10 @@ export default class ColoredBasesPropertiesPlugin extends Plugin {
 			styleEl.sheet?.insertRule(
 				`.multi-select-pill[data-sanitized-content="${sanitizedContent}"] { background-color: ${color} !important; }`
 			);
+			// List property values rendered in Bases card views
+			styleEl.sheet?.insertRule(
+				`.bases-cards-line .value-list-element[data-sanitized-content="${sanitizedContent}"] { background-color: ${color} !important; color: white !important; }`
+			);
 		}
 		
 		if (this.settings.colorFormulaProperties) {
@@ -167,6 +171,9 @@ export default class ColoredBasesPropertiesPlugin extends Plugin {
 			if (this.settings.colorListProperties) {
 				styleEl.sheet?.insertRule(
 					`.internal-embed.bases-embed .multi-select-pill[data-sanitized-content="${sanitizedContent}"] { background-color: ${color} !important; }`
+				);
+				styleEl.sheet?.insertRule(
+					`.internal-embed.bases-embed .bases-cards-line .value-list-element[data-sanitized-content="${sanitizedContent}"] { background-color: ${color} !important; color: white !important; }`
 				);
 			}
 			
@@ -239,6 +246,14 @@ export default class ColoredBasesPropertiesPlugin extends Plugin {
 						const contentElement = element.querySelector('.multi-select-pill-content') as HTMLElement;
 						return contentElement?.textContent || element.textContent || '';
 					},
+					shouldSkip: () => false,
+				},
+				{
+					// List property values rendered in Bases card views use
+					// `.value-list-element` spans instead of `.multi-select-pill`.
+					enabled: this.settings.colorListProperties,
+					selector: '.bases-cards-line .value-list-element',
+					getTextContent: (element: HTMLDivElement) => element.textContent?.trim() || '',
 					shouldSkip: () => false,
 				},
 				{
@@ -510,6 +525,9 @@ export default class ColoredBasesPropertiesPlugin extends Plugin {
 						       element.classList?.contains('tag') ||
 						       element.querySelector?.('.bases-table-cell .tag') ||
 						       element.querySelector?.('.value-list-container .tag') ||
+						       // Watch for list values rendered in Bases cards
+						       element.classList?.contains('value-list-element') ||
+						       element.querySelector?.('.value-list-container .value-list-element') ||
 						       // Watch for embedded bases
 						       element.classList?.contains('internal-embed') ||
 						       element.classList?.contains('bases-embed') ||

@@ -36,3 +36,19 @@ body .bases-table-cell .tag[data-sanitized-content] {
 	padding: 2px 8px;
 	text-decoration: none;
 }
+
+/* Base styles for list property values rendered in Bases cards */
+body .bases-cards-line .value-list-element[data-sanitized-content] {
+	transition: background-color 0.2s ease;
+	color: white;
+	border-radius: var(--pill-radius);
+	padding: 1px 8px;
+	display: inline-flex;
+	align-items: center;
+}
+body .bases-cards-line .value-list-container {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	align-items: center;
+}
